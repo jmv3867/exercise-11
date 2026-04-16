@@ -20,6 +20,9 @@ The objective of this exercise is to run exploratory multivariate regression to 
 library(tidyverse)
 library(broom)
 library(skimr)
+library(MuMIn)
+library(naniar)
+library(ggplot2)
 ```
 
 #### Dataset
@@ -33,6 +36,8 @@ d<- read_tsv(f, col_names = TRUE)
 view(d)
 names(d)
 
+glimpse(d)
+
 s<- (skim(d))
 s
 ```
@@ -45,13 +50,35 @@ After doing the skim analysis of the dataset we obtained that 4 columns were cat
 
 ```{r}
 
+# Replace all values of -999 with NA
 
+d<- d %>%
+  replace_with_na_all(condition = ~.x == -999)
+
+glimpse(d)
+view(d)
+
+# the new dataset only contains NA instead of -999 values.
 ```
 
 ##### Step 2
 
 ```{r}
 
+# Drop the variables litter size and refs
+# Rename the variable max.life(mo) to maxlife(mo)
+# Rename the variable wean mass(g) to weanmass(g)
+
+d<- d %>%
+  select(-`litter size`, -refs) %>%
+  rename(
+    `maxlife(mo)`= `max. life(mo)`,
+    `weanmass(g)`= `wean mass(g)`
+    
+  )
+
+glimpse(d)
+view(d)
 
 ```
 
@@ -59,6 +86,13 @@ After doing the skim analysis of the dataset we obtained that 4 columns were cat
 
 ```{r}
 
+# Log transform all the of the other numeric variables
+
+d<-d %>%
+  mutate(across(where(is.numeric), ~ ifelse(.x > 0, log(.x), NA_real_)))
+
+glimpse(d)
+view(d)
 
 ```
 
@@ -66,6 +100,41 @@ After doing the skim analysis of the dataset we obtained that 4 columns were cat
 
 ```{r}
 
+# Regress the age, AFR(mo), and maxlife(mo) and mass variables on overall body mass(g) and add the residuals to the dataframe as new variables
+
+## Age variables regressed on log body mass
+
+m_gest <- lm(`gestation(mo)` ~ `mass(g)`, data = d, na.action = na.exclude)
+
+
+m_wean <- lm(`weaning(mo)` ~ `mass(g)`, data = d, na.action = na.exclude)
+
+
+m_afr <- lm(`AFR(mo)` ~ `mass(g)`, data = d, na.action = na.exclude)
+
+
+m_maxlife <- lm(`maxlife(mo)` ~ `mass(g)`, data = d, na.action = na.exclude)
+
+## Mass variables regressed on log body mass
+
+m_newborn <- lm(`newborn(g)` ~ `mass(g)`, data = d, na.action = na.exclude)
+
+m_weanmass <- lm(`weanmass(g)` ~ `mass(g)`, data = d, na.action = na.exclude)
+
+## Resigual columns
+
+d <- d%>%
+  mutate(
+    relGest = resid(m_gest),
+    relWean = resid(m_wean),
+    relAFR = resid(m_afr),
+    relLife = resid(m_maxlife),
+    relNewbornMass = resid(m_newborn),
+    relWeaningMass = resid(m_weanmass)
+  )
+
+glimpse(d)
+view(d)
 
 ```
 
@@ -73,12 +142,201 @@ After doing the skim analysis of the dataset we obtained that 4 columns were cat
 
 ```{r}
 
+ 
+
+theme_ada <- theme_bw()+
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(size = 9, color = "gray40")
+  )
+
+# Plot residuals of max lifespan (relLife) in relation to Order
+
+p_life <- ggplot(
+  d%>% filter(!is.na(relLife)),
+  aes(x = reorder(order, relLife, FUN = median, na.rm = TRUE), y = relLife)
+)+
+  geom_boxplot(fill = "steelblue", alpha = 0.6, outlier.size = 0.8)+
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  labs(
+    title = "Residual Max Lifespan by Mammalian Order",
+    subtitle = "relLife = residuals of log(maxlife) ~ log(mass)",
+    x = "Order",
+    y = "Residual Max Lifespan"
+  )+
+  theme_ada
+
+p_life
+```
+
+The mammalian order that has the highest residual lifespan is "primates"
+
+```{r}
+
+# Plot residuals of newborn mass (relNewbornMass) in relation to Order
+
+p_newborn <- ggplot(
+  d %>% filter(!is.na(relNewbornMass)),
+  aes(x = reorder(order, relNewbornMass, FUN = median, na.rm = TRUE), y = relNewbornMass)
+)+
+  geom_boxplot(fill = "darkorange", alpha = 0.6, outlier.size = 0.8)+
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  labs(
+    title = "Residual Newborn Mass by Mammalian Order",
+    subtitle = "relNewbornMass = residuals of log(newborn(g)) ~ log(mass)",
+    x = "Order",
+    y = "Residual Newborn Mass"
+  )+
+  theme_ada
+
+p_newborn
 
 ```
+
+The mammalian order that has the highest residual newborn mass is Perissodactyla
+
+```{r}
+
+# Plot residuals of wearing mass (relWeaningMass) in relation to Order
+
+p_weanmass <- ggplot(
+  d %>% filter(!is.na(relWeaningMass)),
+  aes(x = reorder(order, relWeaningMass, FUN = median, na.rm = TRUE), y = relWeaningMass)
+)+
+  geom_boxplot(fill = "seagreen", alpha = 0.6, outlier.size = 0.8)+
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  labs(
+    title = "Residual Weaning Mass by Mammalian Order",
+    subtitle = "relWeaningMass = residuals of log(weanmass(g)) ~ log(mass)",
+    x = "Order",
+    y = "Residual Weaning Mass"
+  )+
+  theme_ada
+
+p_weanmass
+```
+
+The mammalian order that has the highest residual weaning mass is Pholidota
 
 ##### Step 6
 
 ```{r}
 
+# Run models and a model selection process to evaluate what variables best predict each of the two response variables, maxlife(mo) and AFR(mo), from the following predictors: gestation(mo), newborn(g), weaning(mo), weanmass(g), litters/year, and overall body mass(g)
+
+##Predictors for model selection
+
+predictor_cols <- c("gestation(mo)", "newborn(g)", "weaning(mo)",
+                    "weanmass(g)", "litters/year", "mass(g)")
+
+run_model_selection <- function(response, data) {
+  response_clean <- gsub("`", "", response)
+  predictor_clean <- c("gestation(mo)", "newborn(g)", "weaning(mo)", "weanmass(g)", "litters/year", "mass(g)")
+  
+  full_formula <- reformulate(
+    termlabels = paste0("`", predictor_clean, "`"),
+    response = paste0("`", response_clean, "`"))
+  
+  vars_bare <- c(
+    response_clean, predictor_clean, "`")
+  
+  data_clean<- data %>%
+    drop_na(any_of(vars_bare))
+  cat("\nRows used for", response, ":", nrow(data_clean), "\n")
+  
+  options(na.action = "na.fail")
+  full_model<- lm(full_formula, data = data_clean)
+  
+  dredge_table <- dredge(full_model, rank = "AICc")
+  
+  return(list(
+    full_model = full_model,
+    dredge_table = dredge_table,
+    data_clean = data_clean
+  ))
+}
 
 ```
+
+```{r}
+
+# Model selection for AFR(mo)
+
+cat("\n========== MODEL SELECTION: AFR(mo) ==========\n")
+res_maxlife <- run_model_selection("maxlife(mo)", d)
+res_afr <- run_model_selection("AFR(mo)", d)
+
+## the top models
+
+(res_afr$dredge_table)
+```
+
+For each of the two response variables, indicate what is the best model overall based on AICc and how many models have a delta AICc?
+
+```{r}
+
+best_afr <- get.models(res_afr$dredge_table, subset = 1)[[1]]
+cat("\nBest model for AFR(mo):\n")
+print(summary(best_afr))
+```
+
+How many models have a delta AICc of 4 or less?
+
+```{r}
+
+top_afr<- get.models(res_afr$dredge_table, subset = delta <= 4)
+cat("\nNumber of models with delta AICc <= 4 (AFR):", length(top_afr), "\n")
+ 
+top_afr_table<- res_afr$dredge_table[res_afr$dredge_table$delta <= 4, ]
+cat("\nTop models table (AFR):\n")
+print(top_afr_table)
+ 
+cols_in_table_afr<- intersect(predictor_cols, colnames(top_afr_table))
+in_all_afr <- cols_in_table_afr[
+  apply(top_afr_table[, cols_in_table_afr, drop = FALSE], 2,
+        function(x) all(!is.na(x)))
+]
+cat("Variables in ALL top models (AFR):", paste(in_all_afr, collapse = ", "), "\n")
+
+```
+
+What variables, if any, appear in all of this set of "top" models?
+
+Calculate and plot the model-averaged coefficients and their CIs across this set of top models.
+
+```{r}
+
+avg_afr<- model.avg(res_afr$dredge_table, subset = delta <= 4)
+cat("\nModel-averaged coefficients (AFR):\n")
+print(summary(avg_afr))
+ 
+coef_afr<- as.data.frame(confint(avg_afr)) %>%
+  rownames_to_column("term") %>%
+  rename(lower = `2.5 %`, upper = `97.5 %`) %>%
+  mutate(estimate = coef(avg_afr)[term]) %>%
+  filter(term != "(Intercept)")
+ 
+p_avg_afr<- ggplot(coef_afr, aes(x = reorder(term, estimate),
+                                   y = estimate))+
+  geom_point(size = 3, color = "darkorchid")+
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2,
+                color = "darkorchid")+
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  coord_flip()+
+  labs(
+    title= "Model-Averaged Coefficients: AFR(mo)",
+    subtitle= "Top models with delta AICc <= 4",
+    x= "Predictor",
+    y= "Averaged Coefficient (95% CI)"
+  ) +
+  theme_ada
+ 
+print(p_avg_afr)
+```
+
+#### Results
+
+The best model for maxlife(mo) is the lowest AICc row in dredge table
+
+The best model for AFR(mo) is the lowest AICc row in dredge table
