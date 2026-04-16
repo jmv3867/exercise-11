@@ -1,0 +1,84 @@
+---
+title: "exercise-11"
+author: "Janny Mauricio Velasco Alban"
+format: html
+editor: visual
+---
+
+# Exercise 11
+
+## Janny Mauricio Velasco Alban
+
+### Practice Model Selection
+
+The objective of this exercise is to run exploratory multivariate regression to evaluate different models.
+
+#### Libraries
+
+```{r}
+
+library(tidyverse)
+library(broom)
+library(skimr)
+```
+
+#### Dataset
+
+```{r}
+
+f<- "https://raw.githubusercontent.com/difiore/ada-datasets/main/Mammal_lifehistories_v2.txt"
+
+d<- read_tsv(f, col_names = TRUE)
+
+view(d)
+names(d)
+
+s<- (skim(d))
+s
+```
+
+After doing the skim analysis of the dataset we obtained that 4 columns were categorical (character) and 10 were numeric. (verify with the skimr results).
+
+#### Challenge
+
+##### Step 1
+
+```{r}
+
+
+```
+
+##### Step 2
+
+```{r}
+
+
+```
+
+##### Step 3
+
+```{r}
+
+
+```
+
+##### Step 4
+
+```{r}
+
+
+```
+
+##### Step 5
+
+```{r}
+
+
+```
+
+##### Step 6
+
+```{r}
+
+
+```
